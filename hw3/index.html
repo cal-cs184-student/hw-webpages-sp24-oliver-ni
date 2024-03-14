@@ -1,7 +1,377 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Homework 3 index.html here
-	</body>
-</html>
+<h1 id="cs-184-writeup">CS 184 Writeup</h1>
+<style>
+    img { max-width: 45%; }
+    table img { max-width: 100%; }
+</style>
+<h2 id="part-1">Part 1</h2>
+<h3 id="ray-generation-and-primitive-intersection">Ray Generation and
+Primitive Intersection</h3>
+<p>The core rendering loop of our path tracer program consists of mostly
+calls to <code>PathTracer::raytrace_pixel</code>. This function is
+called for each pixel in the image, and traces <code>num_samples</code>
+camera rays through the scene. For each sample, it generates a ray from
+camera through that pixel, and traces it through the scene, detecting
+intersections with the scene’s geometry and then computing the color of
+the pixel based the interactions.</p>
+<p>The camera consists of a viewing origin, located at <span
+class="math inline">(0,0)</span>, as well as a sensor located in the
+plane <span class="math inline"><em>z</em> =  − 1</span>. All paths
+traced by our path tracer start at the viewing origin, and the
+intersection of the ray with the sensor corresponds to the pixel in the
+image. To generate a ray for a pixel, we implemented
+<code>Camera::generate_ray</code>, which converts the pixel coordinates
+to the coordinates on the camera sensor, and then constructs a ray from
+the viewing origin through the sensor.</p>
+<p>FInally, as the ray is traced through the scene, we detect
+intersections with the scene’s geometry. At the lowest-level, the scene
+is made up of many <code>Primitive</code> objects, which, for our
+purposes, can be either <code>Triangle</code> or <code>Sphere</code>
+objects. To detect intersections with the scene’s geometry, we
+implemented <code>Triangle::intersect</code> and
+<code>Sphere::intersect</code>, as well as their corresponding
+<code>has_intersection</code> functions. Higher-level objects like
+<code>Mesh</code> can be built up from these low-level primitives, and
+computing intersections with them is done by checking intersections with
+each of their constituent primitives.</p>
+<h3 id="triangle-intersection">Triangle Intersection</h3>
+<p>Detecting intersections with triangles can be done by first computing
+the intersection point of the ray with the plane defined by the
+triangle, and then checking if the intersection point is inside the
+triangle. However, we instead used the Möller–Trumbore intersection
+algorithm, which can perform the intersection test in a single step.</p>
+<p>The Möller–Trumbore intersection algorithm returns the barycentric
+coordinates of the intersection point, which can be used to determine if
+the intersection point is inside the triangle, meaning all three
+coordinates are non-negative and sum to 1. (Actually, the third
+coordinate is determined completely by the first two, which simplifies
+our calculations.) Additionally, it tells us the time of intersection,
+which we check to ensure is positive and within the bounds already
+specified on the <code>Ray</code> object.</p>
+<h3 id="demo-images">Demo Images</h3>
+<p>Shown below are a couple of images rendered using our path tracer so
+far, with normal shading.</p>
+<p><img src="part1/CBempty.png" /> <img src="part1/CBspheres.png" />
+<img src="part1/CBgems.png" /> <img src="part1/CBcoil.png" /></p>
+<h2 id="part-2">Part 2</h2>
+<h3 id="bvh-construction">BVH Construction</h3>
+<p>Currently, our path tracer tests every ray against every primitive in
+the scene. To speed up intersection tests, we implemented a bounding
+volume hierarchy (BVH) to organize the primitives in the scene. The BVH
+turns the primitives into a binary tree, where each node contains a
+bounding box that encompasses all the primitives in its subtree. This
+allows us to quickly discard large portions of the scene when testing
+for intersections.</p>
+<p>First, we implemented the BVH using a naïve median algorithm, where
+we first select the axis with the largest extent, and then sort the
+primitives along that axis, splitting the tree into two equally-sized
+subtrees. We then recursively split each subtree into two more subtrees,
+until we reach a leaf node, which contains a small number of
+primitives.</p>
+<p>We also implemented a more optimal surface area heuristic (SAH)
+algorithm, which attempts to minimize the expected cost of traversing
+the tree. This algorithm is described in Part 6.</p>
+<h3 id="demo-images-1">Demo Images</h3>
+<p>Shown below are a couple of images that we can render now that we
+have a BVH.</p>
+<p><img src="part2/CBlucy.png" /> <img src="part2/CBdragon.png" /></p>
+<p>These models have over 100,000 triangles, and rendering them without
+a BVH would be prohibitively slow. We ran the path tracer for a minute
+on the <code>CBlucy</code> model, and it barely managed to render past
+1%. With the BVH, it renders in 0.2 seconds.</p>
+<h3 id="performance-comparisons">Performance Comparisons</h3>
+<p>Comparing the performance of rendering with and without the BVH, we
+see a huge speedup. Rendering the <code>CBcoil</code> model took 0.1104
+seconds with the BVH, and 50 seconds without. The <code>CBbunny</code>
+model took 0.1378 seconds with the BVH, and 376 seconds without. This is
+a speedup of almost 3000x for the bunny model.</p>
+<h2 id="part-3">Part 3</h2>
+<h3 id="direct-lighting">Direct Lighting</h3>
+<p>In this part, we implemented a Monte Carlo estimator for direct
+lighting, which allows us to compute the color of a point in the scene
+by sampling the light sources directly.</p>
+<p>The first method we implemented for sampling the rays was uniform
+hemisphere sampling
+(<code>PathTracer::estimate_direct_lighting_hemisphere</code>), which
+simply samples a random direction from the hemisphere. With this method,
+we pick a random direction from a uniform distribution over the
+hemisphere, and then trace a ray in that direction to see if it
+intersects with any of the light sources. If it does, we compute the
+color of the point based on the color of the light source and the
+material properties of the surface, using <code>BSDF::f</code>,
+multiplying this by the cosine of the angle between the normal and the
+direction of the light source, and then dividing by the probability of
+sampling that direction.</p>
+<p>This method is simple and easy to implement, but in practice leads to
+noisier results, especially for small light sources. With a large number
+of samples, it converges to the correct result, but it takes a long time
+to do so. Furthermore, it can’t handle point light sources, as the
+probability of intersecting a point light source is 0.</p>
+<p>For the second method, we implemented importance sampling
+(<code>PathTracer::estimate_direct_lighting_importance</code>), which
+samples every light source in the scene directly. This method is more
+complex, since we need to calculate the probability of sampling each
+light source, but it leads to much less noisy results. This is because
+it avoids shooting out many random rays which don’t intersect with any
+light sources, and instead focuses on the light sources themselves. This
+method also handles point light sources.</p>
+<h3 id="importance-sampling-number-of-samples">Importance Sampling:
+Number of Samples</h3>
+<p>We also tested the importance sampling method with different numbers
+of light samples per pixel. The results are shown in the table
+below.</p>
+<table>
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 24%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>1 sample</th>
+<th>4 samples</th>
+<th>16 samples</th>
+<th>64 samples</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part3/CBbunny_importance_1.png" /></td>
+<td><img src="part3/CBbunny_importance_4.png" /></td>
+<td><img src="part3/CBbunny_importance_16.png" /></td>
+<td><img src="part3/CBbunny_importance_64.png" /></td>
+</tr>
+</tbody>
+</table>
+<p>Looking at the soft shadows on the left side of the bunny, we can see
+that a higher number of samples leads to a significantly less noisy
+result.</p>
+<h3 id="demo-images-uniform-vs.-importance-sampling">Demo Images:
+Uniform vs. Importance Sampling</h3>
+<p>To illustrate the difference between the two methods, we rendered the
+<code>CBbunny</code> model with both methods. The results are shown
+below, with the uniform hemisphere sampling on the left.</p>
+<p><img src="part3/CBbunny_hemi.png" /> <img
+src="part3/CBbunny_importance.png" /></p>
+<p>Overall, the importance sampling method produces a much less noisy
+result. Especially since there was only one light, and the number of
+samples was relatively small, we can see the noise caused by the uniform
+hemisphere sampling method being less representative than importance
+sampling.</p>
+<h2 id="part-4">Part 4</h2>
+<h3 id="global-illumination">Global Illumination</h3>
+<p>In this part, we implemented global illumination, which allows us to
+compute the color of a point in the scene by sampling the indirect light
+that bounces around the scene, in addition to the light that directly
+hits the point from a light source. This is done by recursively tracing
+rays from the point to other points in the scene, and then computing the
+color of the point based on the colors of the points it bounces to.</p>
+<p>Our function <code>PathTracer::at_least_one_bounce_radiance</code>
+provides this functionality. For each intersection from the camera ray
+in the scene, we first calculate the one bounce radiance, and then
+sample a random direction from the BSDF of the surface, and trace a new
+ray in that direction. If the new ray intersects with the scene, we
+recursively compute the color of the point it intersects with,
+multiplying that by the probability of sampling that direction, and the
+angle between the normal and the direction of the new ray. Since this is
+a recursive process, we limit the depth of the rays to a certain number,
+only computing indirect light for up to that number of bounces.</p>
+<h3 id="demo-images-global-illumination">Demo Images: Global
+Illumination</h3>
+<p>We rendered the <code>CBbunny</code> scene once with <em>only</em>
+direct illumination, and once with <em>only</em> indirect illumination.
+The results are shown below.</p>
+<p><img src="part4/CBbunny_direct.png" /> <img
+src="part4/CBbunny_indirect.png" /></p>
+<p>We can see that the direct illumination is much brighter, and the
+indirect illumination is generally darker. However, the indirect
+illumination also provides a lot of detail that is not present in the
+direct illumination, such as the soft red and blue shading throughout
+the whole image.</p>
+<p>Combined, these two images give us the full global illumination,
+shown below:</p>
+<p><img src="part4/CBbunny.png" /></p>
+<h3 id="demo-images-number-of-bounces">Demo Images: Number of
+Bounces</h3>
+<p>We also tested the global illumination method with different numbers
+of bounces. The results are shown in the table below. The first row
+shows the result of computing the <span
+class="math inline"><em>n</em></span>-th bounce only, and the second row
+shows the result of bounces <span class="math inline">0</span> to <span
+class="math inline"><em>n</em></span> accumulate.</p>
+<p>Additionally, we tested the global illumination method with Russian
+Roulette, which is a technique to terminate rays early based on their
+probability of continuing. The third row shows the result of bounces
+<span class="math inline">0</span> to <span
+class="math inline"><em>n</em></span> with Russian Roulette enabled. We
+can see that Russian Roulette does not significantly affect the result,
+but it does speed up the rendering by a lot.</p>
+<table>
+<colgroup>
+<col style="width: 18%" />
+<col style="width: 13%" />
+<col style="width: 13%" />
+<col style="width: 13%" />
+<col style="width: 13%" />
+<col style="width: 13%" />
+<col style="width: 13%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th># bounces</th>
+<th>0</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>5</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline"><em>n</em></span>-th bounce only</td>
+<td><img src="part4/CBbunny_o0_m0.png" /></td>
+<td><img src="part4/CBbunny_o0_m1.png" /></td>
+<td><img src="part4/CBbunny_o0_m2.png" /></td>
+<td><img src="part4/CBbunny_o0_m3.png" /></td>
+<td><img src="part4/CBbunny_o0_m4.png" /></td>
+<td><img src="part4/CBbunny_o0_m5.png" /></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">0</span> to <span
+class="math inline"><em>n</em></span> bounces</td>
+<td><img src="part4/CBbunny_o1_m0.png" /></td>
+<td><img src="part4/CBbunny_o1_m1.png" /></td>
+<td><img src="part4/CBbunny_o1_m2.png" /></td>
+<td><img src="part4/CBbunny_o1_m3.png" /></td>
+<td><img src="part4/CBbunny_o1_m4.png" /></td>
+<td><img src="part4/CBbunny_o1_m5.png" /></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">0</span> to <span
+class="math inline"><em>n</em></span> bounces w/ Russian Roulete</td>
+<td><img src="part4/CBbunny_rr_m0.png" /></td>
+<td><img src="part4/CBbunny_rr_m1.png" /></td>
+<td><img src="part4/CBbunny_rr_m2.png" /></td>
+<td><img src="part4/CBbunny_rr_m3.png" /></td>
+<td><img src="part4/CBbunny_rr_m4.png" /></td>
+<td><img src="part4/CBbunny_rr_m5.png" /></td>
+</tr>
+</tbody>
+</table>
+<p>Here is a rendering with maximum depth set to <span
+class="math inline">100</span> and Russian Roulette enabled:</p>
+<p><img src="part4/CBbunny_rr_m100_s1024.png" /></p>
+<h3 id="demo-images-number-of-rays-per-pixel">Demo Images: Number of
+Rays per Pixel</h3>
+<p>We can see the effects that tracing multiple rays per pixel has on
+the final image. Tracing more rays reduces the noise in the image. The
+results are shown in the table below.</p>
+<table>
+<thead>
+<tr class="header">
+<th># samples</th>
+<th>image</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td><img src="part4/CBbunny_rr_m100_s1.png" /></td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td><img src="part4/CBbunny_rr_m100_s2.png" /></td>
+</tr>
+<tr class="odd">
+<td>4</td>
+<td><img src="part4/CBbunny_rr_m100_s4.png" /></td>
+</tr>
+<tr class="even">
+<td>16</td>
+<td><img src="part4/CBbunny_rr_m100_s16.png" /></td>
+</tr>
+<tr class="odd">
+<td>64</td>
+<td><img src="part4/CBbunny_rr_m100_s64.png" /></td>
+</tr>
+<tr class="even">
+<td>1024</td>
+<td><img src="part4/CBbunny_rr_m100_s1024.png" /></td>
+</tr>
+</tbody>
+</table>
+<h2 id="part-5">Part 5</h2>
+<h3 id="adaptive-sampling">Adaptive Sampling</h3>
+<p>Adaptive sampling allows us to potentially reduce noise more
+efficiently than uniform sampling, by using a statistical model in order
+to increase the number of samples for areas of the image that require
+more noise reduction to converge. In our implementation, when
+calculating the raytrace through each pixel, we calculate a measurement
+of the pixel’s convergence <em>I</em> as 1.96 multiplied by its variance
+divided by the square root of the number of samples. If this measurement
+is at most maxTolerance multiplied by the mean (where maxTolerance is a
+parameter passed in by the user), we update the sample buffer and stop
+the ray tracing loop.</p>
+<p>Below is a rendering at 2048 samples per pixel, 1 sample per light,
+and a max ray depth of 5, as well as its respective sampling rate image.
+Note the higher sampling rate (represented in red) where the spheres are
+in shadow, versus the lower sampling rate (represented in blue) of the
+floors and wall.</p>
+<p><img src="part5/bunny.png" /> <img src="part5/bunny_rate.png" /></p>
+<p>Here is another scene with the same rendering parameters:</p>
+<p><img src="part5/spheres.png" /> <img
+src="part5/spheres_rate.png" /></p>
+<h2 id="part-6">Part 6</h2>
+<h3 id="bvh-surface-area-heuristic">BVH Surface Area Heuristic</h3>
+<p>How good a BVH is at speeding up intersection tests depends on how
+well it divides the scene. To attain maximal speedup, we implemented the
+surface area heuristic (SAH) to guide the construction of the BVH. By
+partitioning the tree in a way that mostly minimizes the surface areas
+of the subtree bounding boxes (also taking the number of primitives in
+each subtree into account) and thus the probability a ray intersects a
+subtree, we can maximize the number of primitives that can be discarded
+at each step.</p>
+<p>To illustrate this, let’s say we have the following scene, and
+consider two ways of partitioning it into subtrees:</p>
+<pre><code>Original Objects        Partition 1          Partition 2
+.................    ........┏━━━━━━━┓    ...........┏━━━━┓
+............#..#.    ┏━┓.....┃...#..#┃    ┏━━━━━━━━━┓┃#..#┃
+.#.......#....#..    ┃#┃.....┃#....#.┃    ┃#.......#┃┃..#.┃
+.........#...#.#.    ┗━┛.....┃#...#.#┃    ┃........#┃┃.#.#┃
+.................    ........┗━━━━━━━┛    ┗━━━━━━━━━┛┗━━━━┛</code></pre>
+<p>Note how Partition 1 results in smaller bounding boxes and much more
+empty space between the them. A ray that goes between the two bounding
+boxes without hitting either of them could be immediately discarded in
+Partition 1, but not in Partition 2. This is the kind of optimization
+the SAH aims to achieve.</p>
+<p>To actually implement SAH, we first need to find the best split for a
+given set. This is hard to do for lots of objects, so we approximate by
+bucketing the extent of the bounding box into a relatively small number
+of buckets, and then trying every possible split point between the
+buckets. We then choose the split that minimizes the SAH cost, which is
+a combination of the surface area of the bounding boxes and the number
+of primitives in each subtree.</p>
+<p>Measuring the performance, we see that the SAH BVH is faster than the
+naïve median BVH, albeit not by too much:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Median BVH</th>
+<th>SAH BVH</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>CBcoil</code></td>
+<td>0.1104s</td>
+<td>0.085s</td>
+</tr>
+<tr class="even">
+<td><code>CBbunny</code></td>
+<td>0.1378s</td>
+<td>0.1098s</td>
+</tr>
+</tbody>
+</table>
