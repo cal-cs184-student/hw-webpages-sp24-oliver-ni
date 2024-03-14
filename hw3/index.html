@@ -6,6 +6,20 @@
     pre { overflow: unset; }
 </style>
 <a href="https://cal-cs184-student.github.io/hw-webpages-sp24-oliver-ni/hw3/index.html">https://cal-cs184-student.github.io/hw-webpages-sp24-oliver-ni/hw3/index.html</a>
+<meta charset="utf-8">
+<h2 id="overview">Overview</h2>
+<p>In this project, we implemented a path tracer program that allows us
+to render global illumination, in turn creating more realistic rendered
+images. Path tracing simulates rays through each pixel in an image, then
+averages them to find its color. In this project, we first determined
+how to calculate ray trajectories and their scene intersections, before
+implementing a Bounding Volume Hierarchy to more efficiently traverse
+the scene and thus reduce rendering time. We then implemented direct
+illumination, including zero-bounce illumination, before moving onto
+global illumination, including n-bounce illumination. Finally, we
+implemented adaptive sampling, allowing us to reduce the noise of our
+images at the cost of increased rendering time. Overall, we ran into no
+overly significant issues with implementation.</p>
 <h2 id="part-1">Part 1</h2>
 <h3 id="ray-generation-and-primitive-intersection">Ray Generation and
 Primitive Intersection</h3>
