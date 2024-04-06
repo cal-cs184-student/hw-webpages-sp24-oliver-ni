@@ -1,7 +1,293 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Homework 4 index.html here
-	</body>
-</html>
+<link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+<style>
+    img { max-width: 45%; }
+    table img { max-width: 100%; }
+    pre { overflow: unset; }
+</style>
+<p>https://cal-cs184-student.github.io/hw-webpages-sp24-oliver-ni/hw4/index.html</p>
+<h1 id="homework-4-cloth-simulation">Homework 4: Cloth Simulation</h1>
+<p>In this project, we implemented a simple simulation for cloth
+material. There are many ways to simulate cloth, but we used the
+simplest method, which is modeling the cloth as a grid of masses
+connected by springs. The springs provide the forces that keep the cloth
+together and give it its shape.</p>
+<h2 id="part-1">Part 1</h2>
+<p>First, we built the actual grid of masses and springs that represent
+the cloth. There are a few different types of springs in the
+simulation:</p>
+<ul>
+<li>Structural springs that connect each mass to its neighbors in the
+grid. These primarily keep the cloth from falling apart.</li>
+<li>Shearing springs that connect each mass to its diagonal neighbors.
+These help the cloth maintain its shape when it is stretched.</li>
+<li>Bending springs that connect each mass to its second-nearest
+neighbors. These help the cloth maintain its shape when it is bent.</li>
+</ul>
+<p>Here’s pictures the cloth grid, with each of these types of springs
+enabled:</p>
+<table>
+<colgroup>
+<col style="width: 35%" />
+<col style="width: 32%" />
+<col style="width: 31%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Structural</th>
+<th>Shearing</th>
+<th>Bending</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part1/structural.png" /></td>
+<td><img src="part1/shearing.png" /></td>
+<td><img src="part1/bending.png" /></td>
+</tr>
+</tbody>
+</table>
+<p>Notice that the structural and bending screenshots look the same in
+the screenshot, since the perfect grid makes it impossible to
+differentiate between lines between nearest neighbors and lines between
+second-nearest neighbors.</p>
+<p>With them all enabled, the cloth looks like this:</p>
+<p><img src="part1/all.png" /></p>
+<h2 id="part-2">Part 2</h2>
+<p>Next, we implemented the physics simulation that actually moves the
+cloth. We first calculate the forces on each mass, based on both
+external accelerations on the whole cloth (in this case, gravity) as
+well as the forces from the springs connecting the masses. To do this,
+we use Hooke’s Law as well as <span
+class="math inline"><em>F</em> = <em>m</em><em>a</em></span> to
+calculate the forces on each mass.</p>
+<p>Once we have the forces, we can calculate the movement of the cloth.
+Because we only know what the accelerations of the masses should be, and
+the velocities aren’t constant, we need a way to approximate the
+integral. To do this, we used the Verlet integration method.</p>
+<p>There are a couple parameters of the cloth in our simulation: the
+spring constant <span
+class="math inline"><em>k</em><sub><em>s</em></sub></span>, tdamping
+constant <span class="math inline"><em>d</em></span>, as well as the
+density of the point masses in the cloth. Playing around with these, we
+notice the following:</p>
+<ul>
+<li><p>The spring constant <span
+class="math inline"><em>k</em><sub><em>s</em></sub></span> affects the
+“strechiness” of the cloth (along the plane). Although the way the cloth
+falls is pretty similar regardless of the value of <span
+class="math inline"><em>k</em><sub><em>s</em></sub></span>, the
+resulting shape of the cloth is different. Low values of <span
+class="math inline"><em>k</em><sub><em>s</em></sub></span> make the
+cloth “sag” down more, while high values of <span
+class="math inline"><em>k</em><sub><em>s</em></sub></span> make the
+cloth more taut.</p>
+<table>
+<thead>
+<tr class="header">
+<th><span
+class="math inline"><em>k</em><sub><em>s</em></sub> = 5000</span></th>
+<th><span
+class="math inline"><em>k</em><sub><em>s</em></sub> = 50000</span></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part2/ks-5000.png" /></td>
+<td><img src="part2/ks-50000.png" /></td>
+</tr>
+</tbody>
+</table></li>
+<li><p>The density affects the “rigidity” the cloth (with respect to
+bends). Higher densities make the cloth more “solid” and less likely to
+bend or fold, whilea lower densities make the cloth more flexible. This
+is because the density affects the mass of each point mass in the cloth,
+and thus how much force is needed to move it.</p>
+<table>
+<thead>
+<tr class="header">
+<th><span class="math inline"><em>ρ</em> = 1</span></th>
+<th><span class="math inline"><em>ρ</em> = 20</span></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part2/density-1.png" /></td>
+<td><img src="part2/density-20.png" /></td>
+</tr>
+</tbody>
+</table></li>
+<li><p>The damping factor <span class="math inline"><em>d</em></span>
+affects the “bounciness” of the cloth. Low values of <span
+class="math inline"><em>d</em></span> make the cloth feel more bouncy,
+where even after falling, it will continue to bounce back and force,
+losing little energy. High values of <span
+class="math inline"><em>d</em></span> make the cloth come to rest more
+quickly after stabilizing (though it makes it fall slower).</p>
+<table>
+<thead>
+<tr class="header">
+<th><span class="math inline"><em>d</em> = 0.05%</span></th>
+<th><span class="math inline"><em>d</em> = 0.2%</span></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part2/damping-low.gif" /></td>
+<td><img src="part2/damping-high.gif" /></td>
+</tr>
+</tbody>
+</table></li>
+</ul>
+<p>Here is a picture of the cloth in <code>final.json</code> in its
+final resting state:</p>
+<p><img src="part2/final.png" /></p>
+<h2 id="part-3">Part 3</h2>
+<p>We also implemented a simple collision detection system to prevent
+the cloth from falling through the ground, or through spheres. For each
+of these cases, we find where the point would have intersected the
+object, calculate the adjustment vector it would have taken to get to
+that position, and add that to its previous position, multiplying by a
+friction factor.</p>
+<p>Here’s pictures of the cloth falling onto a sphere, with different
+<span class="math inline"><em>k</em><em>s</em></span> values:</p>
+<table>
+<colgroup>
+<col style="width: 31%" />
+<col style="width: 33%" />
+<col style="width: 34%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><span
+class="math inline"><em>k</em><sub><em>s</em></sub> = 500</span></th>
+<th><span
+class="math inline"><em>k</em><sub><em>s</em></sub> = 5000</span></th>
+<th><span
+class="math inline"><em>k</em><sub><em>s</em></sub> = 50000</span></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part3/ks-500.png" /></td>
+<td><img src="part3/ks-5000.png" /></td>
+<td><img src="part3/ks-50000.png" /></td>
+</tr>
+</tbody>
+</table>
+<p>Additionally, here is a picture of the cloth lying onto a plane:</p>
+<p><img src="part3/plane.png" /></p>
+<h2 id="part-4">Part 4</h2>
+<p>In this part, we implemented self-collision detection to prevent the
+cloth from intersecting itself. In order to accelerate this process, we
+implemented spatial hashing to quickly find nearby candidate points to
+check for collisions. This is done by dividing the space into smaller 3D
+blocks, and then checking only the points that are in the same block as
+the point in question.</p>
+<p>Here’s pictures of the cloth starting to fall onto itself:</p>
+<p><img src="part4/initial.png" /></p>
+<p>Here’s pictures of the cloth’s resting position after falling and
+colliding with itself, with different parameters:</p>
+<table>
+<colgroup>
+<col style="width: 31%" />
+<col style="width: 35%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><span
+class="math inline"><em>k</em><sub><em>s</em></sub> = 5000, <em>ρ</em> = 15</span></th>
+<th><span
+class="math inline"><em>k</em><sub><em>s</em></sub> = 5000, <em>ρ</em> = 150</span></th>
+<th><span
+class="math inline"><em>k</em><sub><em>s</em></sub> = 50000, <em>ρ</em> = 15</span></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part4/default.png" /></td>
+<td><img src="part4/density-150.png" /></td>
+<td><img src="part4/ks-50000.png" /></td>
+</tr>
+</tbody>
+</table>
+<p>Notice that the higher density allows for more folds and smaller
+folds to take place, and the higher spring constant makes the cloth more
+taut, as we described in Part 2.</p>
+<h2 id="part-5">Part 5</h2>
+<p>In this part, we implemented shaders for the cloth to make it look
+more realistic. We wrote shaders for OpenGL using GLSL. These shaders
+consist of two parts, a vertex shader and a fragment shader. The vertex
+shader is responsible for transforming the vertices of the cloth, and
+then passes that info into the fragment shader, which is responsible for
+coloring the pixels of the cloth.</p>
+<p>First, we implemented Diffuse and Blinn-Phong shading. In particular,
+the way the Blinn-Phong reflection model works is by computing three
+components:</p>
+<ul>
+<li>Ambient: constant based on the ambient light in the scene.</li>
+<li>Diffuse: where light reflects at the same angle as it hits the
+surface. Creates a matte look.</li>
+<li>Specular: where light reflects at the angle of reflection, creating
+a shiny look.</li>
+</ul>
+<p>These components are weighted together to create the final color of
+the pixel. Here’s some screenshots comparing the different
+components:</p>
+<table>
+<colgroup>
+<col style="width: 32%" />
+<col style="width: 32%" />
+<col style="width: 34%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Ambient</th>
+<th>Diffuse</th>
+<th>Specular</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part5/phong-ambient.png" /></td>
+<td><img src="part5/phong-diffuse.png" /></td>
+<td><img src="part5/phong-specular.png" /></td>
+</tr>
+</tbody>
+</table>
+<p>Here’s a picture of the cloth with the full Phong shading:</p>
+<p><img src="part5/phong.png" /></p>
+<p>We also implemented texture mapping, which is a way to apply a
+texture to the 3D model. This is done by mapping the texture coordinates
+of the 3D model to the texture, and then using those coordinates to
+color the pixel. Here’s a picture of the cloth with a texture:</p>
+<p><img src="part5/texture.png" /></p>
+<p>In order to make the cloth look more realistic, we also implemented
+bump and displacement mapping. Bump mapping is a technique to simulate
+bumps and dents on a surface, without actually changing the geometry of
+the object. This is done by messing with the normal of the surface at
+each pixel, and then using that normal to calculate the lighting.
+Displacement mapping is similar, but actually changes the geometry of
+the object.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Bump Mapping</th>
+<th>Displacement Mapping</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><img src="part5/bump.png" /></td>
+<td><img src="part5/displacement.png" /></td>
+</tr>
+</tbody>
+</table>
+<p>Notice how the cloth rendered in the bump mapping is still entirely
+smooth on the edges of the sphere, while the cloth rendered in the
+displacement mapping has actual bumps and dents.</p>
+<p>Lastly, we implemented mirror reflection. This is done by simply
+reflecting the ray at the point of intersection, at exactly the same
+angle as it hit the surface. Then, we can follow that ray and map the
+texture at that point.</p>
+<p><img src="part5/mirror.png" /></p>
